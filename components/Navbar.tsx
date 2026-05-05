@@ -92,8 +92,11 @@ export function Navbar() {
               </div>
 
               {/* Mobile Close Button */}
-              <button onClick={() => setIsOpen(false)} className="lg:hidden absolute top-6 right-6 p-2 text-text-muted">
-                <X size={20} />
+              <button 
+                onClick={() => setIsOpen(false)} 
+                className="lg:hidden absolute top-4 right-4 p-3 text-text-muted hover:bg-gray-100 rounded-full transition-all z-[90]"
+              >
+                <X size={24} />
               </button>
 
               <nav className="flex-1 px-3 space-y-1 mt-4 lg:mt-0">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { fetchFromGAS } from '@/lib/gas';
 import { ResourceCard } from '@/components/ResourceCard';
-import { Search, BookOpen, Sparkles } from 'lucide-react';
+import { Search, BookOpen, Sparkles, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function Home() {
@@ -79,10 +79,14 @@ export default function Home() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-          {[1,2,3,4,5,6].map(i => (
-            <div key={i} className="h-64 bg-white/50 animate-pulse rounded-[2rem] border border-border-subtle" />
-          ))}
+        <div className="flex flex-col items-center justify-center py-40 gap-4">
+          <Loader2 className="w-12 h-12 text-brand-primary animate-spin" />
+          <p className="text-text-muted font-bold animate-pulse tracking-widest uppercase text-xs">Synchronizing Resources...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 w-full mt-12">
+            {[1,2,3].map(i => (
+              <div key={i} className="h-[400px] bg-white/50 animate-pulse rounded-[2.5rem] border border-border-subtle shadow-sm" />
+            ))}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">

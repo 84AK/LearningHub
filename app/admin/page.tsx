@@ -3,537 +3,419 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchFromGAS, saveToGAS } from '@/lib/gas';
-import { Navbar } from '@/components/Navbar';
-import Image from 'next/image';
-import { Plus, Trash2, Building2, BookOpen, Key, Link as LinkIcon, Image as ImageIcon, RefreshCcw, Info, Monitor, X, Edit } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, ExternalLink, ShieldCheck, LayoutDashboard, CheckCircle2, AlertCircle, X, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-// Random Password Generator
-const generatePassword = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
-
-// Thumbnail Component for independent error handling
-function ResourceThumbnail({ url }: { url?: string }) {
-  const [error, setError] = useState(false);
-  
-  if (!url || error) {
-    return <ImageIcon size={20} />;
-  }
-
-  return (
-    <Image 
-      src={url} 
-      alt="" 
-      fill 
-      unoptimized={url.includes('notion.so')}
-      className="object-cover" 
-      referrerPolicy="no-referrer"
-      onError={() => setError(true)}
-    />
-  );
-}
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [admin, setAdmin] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
-  const [institutions, setInstitutions] = useState<any[]>([]);
-  const [resources, setResources] = useState<any[]>([]);
-  
-  // Form States
-  const [instName, setInstName] = useState('');
-  const [instType, setInstType] = useState('school');
-  const [resTitle, setResTitle] = useState('');
-  const [resDesc, setResDesc] = useState('');
-  const [resInstId, setResInstId] = useState('');
-  const [resGuideUrl, setResGuideUrl] = useState('');
-  const [resThumbUrl, setResThumbUrl] = useState('');
-  const [resPassword, setResPassword] = useState('');
-  const [isResPasswordProtected, setIsResPasswordProtected] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resources, setResources] = useState<any[]>([]);
+  const [institutions, setInstitutions] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Toast Notification state
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
 
-  // Auth Check
+  // Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    institutionId: '',
+    guideUrl: '',
+    thumbnailUrl: '',
+    password: '',
+    isPasswordProtected: true
+  });
+
   useEffect(() => {
     const savedAdmin = localStorage.getItem('vcep_admin');
     if (!savedAdmin) {
       router.push('/login');
     } else {
       setAdmin(JSON.parse(savedAdmin));
-      loadAllData();
+      loadData();
     }
   }, [router]);
 
-  const loadAllData = async () => {
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const loadData = async () => {
     setLoading(true);
     try {
-      const instData = await fetchFromGAS<any[]>('getInstitutions');
-      if (instData) setInstitutions(instData);
-
-      const resData = await fetchFromGAS<any[]>('getResources');
+      const [resData, instData] = await Promise.all([
+        fetchFromGAS<any[]>('getResources'),
+        fetchFromGAS<any[]>('getInstitutions')
+      ]);
       if (resData) setResources(resData);
-    } catch (error) {
-      console.error("데이터 로드 실패:", error);
+      if (instData) setInstitutions(instData);
+    } catch (err) {
+      console.error(err);
+      showToast('데이터를 불러오는데 실패했습니다.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddInstitution = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!instName) return;
-    setIsSubmitting(true);
-    try {
-      const success = await saveToGAS('addInstitution', {
-        payload: { name: instName, type: instType }
+  const handleOpenModal = (resource?: any) => {
+    if (resource) {
+      setEditingResource(resource);
+      setFormData({
+        title: resource.title,
+        description: resource.description || '',
+        institutionId: resource.institutionId,
+        guideUrl: resource.guideUrl,
+        thumbnailUrl: resource.thumbnailUrl || '',
+        password: resource.password || '',
+        isPasswordProtected: resource.isPasswordProtected ?? true
       });
-      if (success) {
-        setInstName('');
-        loadAllData(); // Refresh
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      setEditingResource(null);
+      setFormData({
+        title: '',
+        description: '',
+        institutionId: institutions[0]?.id || '',
+        guideUrl: '',
+        thumbnailUrl: '',
+        password: '',
+        isPasswordProtected: true
+      });
     }
+    setIsModalOpen(true);
   };
 
-  const handleAddResource = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resTitle || !resInstId || !resGuideUrl) return;
-    if (isResPasswordProtected && !resPassword) return;
-
     setIsSubmitting(true);
     try {
-      const resourceData = {
-        title: resTitle,
-        description: resDesc,
-        institutionId: resInstId,
-        guideUrl: resGuideUrl,
-        thumbnailUrl: resThumbUrl,
-        password: isResPasswordProtected ? resPassword : '',
-        isPasswordProtected: isResPasswordProtected,
-        updatedAt: new Date().toISOString(),
-      };
-
-      let success;
-      if (editingId) {
-        success = await saveToGAS('updateResource', {
-          payload: { id: editingId, ...resourceData }
-        });
-        setEditingId(null);
-      } else {
-        success = await saveToGAS('addResource', {
-          payload: resourceData
-        });
-      }
+      const action = editingResource ? 'updateResource' : 'addResource';
+      const payload = editingResource ? { ...formData, id: editingResource.id } : formData;
       
+      const success = await saveToGAS(action, { payload });
       if (success) {
-        setResTitle(''); setResDesc(''); setResGuideUrl(''); setResThumbUrl(''); setResPassword(''); setResInstId('');
-        loadAllData();
+        showToast(editingResource ? '성공적으로 수정되었습니다!' : '새 자료가 등록되었습니다!');
+        setIsModalOpen(false);
+        loadData();
+      } else {
+        showToast('작업 처리에 실패했습니다.', 'error');
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
+      showToast('오류가 발생했습니다.', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleEditStart = (res: any) => {
-    setEditingId(res.id);
-    setResTitle(res.title);
-    setResDesc(res.description || '');
-    setResInstId(res.institutionId);
-    setResGuideUrl(res.guideUrl);
-    setResThumbUrl(res.thumbnailUrl || '');
-    setResPassword(res.password || '');
-    setIsResPasswordProtected(res.isPasswordProtected !== false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const [deleteId, setDeleteId] = useState<{coll: string, id: string} | null>(null);
-  const [largeDisplay, setLargeDisplay] = useState<{title: string, password: string} | null>(null);
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
+  const handleDelete = async (id: string) => {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
     try {
-      const action = deleteId.coll === 'institutions' ? 'deleteInstitution' : 'deleteResource';
-      const success = await saveToGAS(action, { payload: { id: deleteId.id } });
+      const success = await saveToGAS('deleteResource', { payload: { id } });
       if (success) {
-        setDeleteId(null);
-        loadAllData();
+        showToast('삭제되었습니다.');
+        loadData();
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
+      showToast('삭제 중 오류가 발생했습니다.', 'error');
     }
   };
 
-  if (loading && !admin) return (
-    <div className="flex items-center justify-center min-h-screen bg-bg-main">
-      <div className="w-10 h-10 border-4 border-brand-accent border-t-brand-primary rounded-full animate-spin" />
+  const filteredResources = resources.filter(res => 
+    res.title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (!admin && loading) return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <Loader2 className="w-10 h-10 text-brand-primary animate-spin" />
+      <p className="text-text-muted font-bold animate-pulse">관리자 대시보드 로딩 중...</p>
     </div>
   );
 
   return (
-    <main className="p-10 flex flex-col gap-8 bg-bg-main min-h-screen">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-2">
-        <div className="title-group">
-          <h1 className="text-3xl font-display font-bold text-text-main mb-1">학습 자료 관리 대시보드</h1>
-          <p className="text-sm text-text-muted">학습 리소스를 등록하고 효율적으로 관리하세요.</p>
-        </div>
-      </header>
-      
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {deleteId && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDeleteId(null)} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-white p-8 rounded-2xl max-w-sm w-full shadow-bold border border-border-subtle">
-              <h3 className="text-xl font-bold mb-4 text-text-main">정말 삭제하시겠습니까?</h3>
-              <p className="text-sm text-text-muted mb-8">이 작업은 되돌릴 수 없으며 시스템 데이터에 즉시 반영됩니다.</p>
-              <div className="flex gap-4">
-                <button onClick={() => setDeleteId(null)} className="flex-1 py-3 bg-bg-main border border-border-subtle rounded-xl font-bold text-text-muted transition-colors hover:bg-gray-100">취소</button>
-                <button onClick={handleDelete} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">삭제</button>
-              </div>
-            </motion.div>
+    <main className="p-6 lg:p-10 bg-bg-main min-h-screen">
+      <div className="max-w-[1400px] mx-auto">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+          <div>
+            <div className="flex items-center gap-2 text-brand-primary font-bold mb-2">
+              <LayoutDashboard size={18} />
+              <span className="text-sm uppercase tracking-widest">Admin Dashboard</span>
+            </div>
+            <h1 className="text-3xl lg:text-4xl font-display font-black text-text-main tracking-tight">학습 자료 통합 관리</h1>
           </div>
-        )}
-      </AnimatePresence>
+          <button 
+            onClick={() => handleOpenModal()}
+            className="flex items-center justify-center gap-2 px-8 py-4 bg-brand-primary text-white font-black rounded-[1.25rem] hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/20 group active:scale-95"
+          >
+            <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+            새 자료 등록하기
+          </button>
+        </header>
 
-      {/* Large Password Display Modal (Presentation Mode) */}
-      <AnimatePresence>
-        {largeDisplay && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 md:p-12">
+        {/* Status Toast */}
+        <AnimatePresence>
+          {toast && (
             <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              onClick={() => setLargeDisplay(null)} 
-              className="absolute inset-0 bg-brand-primary/95 backdrop-blur-md" 
+              initial={{ opacity: 0, y: -100, x: '-50%' }}
+              animate={{ opacity: 1, y: 20, x: '-50%' }}
+              exit={{ opacity: 0, y: -100, x: '-50%' }}
+              className={`fixed top-0 left-1/2 z-[110] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${
+                toast.type === 'success' ? 'bg-white border-emerald-100 text-emerald-600' : 'bg-white border-red-100 text-red-600'
+              }`}
+            >
+              {toast.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+              <span className="font-bold">{toast.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {[
+            { label: '전체 자료 수', value: resources.length, icon: ShieldCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: '참여 기관 수', value: institutions.length, icon: LayoutDashboard, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+            { label: '오늘의 업데이트', value: 'New', icon: Plus, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          ].map((stat, i) => (
+            <div key={i} className="bg-white p-6 rounded-[2rem] border border-border-subtle shadow-sm flex items-center gap-5">
+              <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center shadow-inner`}>
+                <stat.icon size={28} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">{stat.label}</p>
+                <p className="text-2xl font-black text-text-main">{stat.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Main Content Area */}
+        <div className="bg-white rounded-[2.5rem] border border-border-subtle shadow-sm overflow-hidden">
+          <div className="p-8 border-b border-border-subtle flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h2 className="text-xl font-black text-text-main">리소스 라이브러리</h2>
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" size={18} />
+              <input 
+                type="text"
+                placeholder="제목으로 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-border-subtle rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition-all text-sm font-medium"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="p-20 text-center flex flex-col items-center gap-4">
+                <Loader2 className="w-8 h-8 text-brand-primary animate-spin" />
+                <p className="text-text-muted font-bold">데이터를 동기화 중입니다...</p>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50/50 border-b border-border-subtle">
+                  <tr>
+                    <th className="px-8 py-5 text-[11px] font-bold text-text-muted uppercase tracking-widest">ID / Title</th>
+                    <th className="px-8 py-5 text-[11px] font-bold text-text-muted uppercase tracking-widest">Institution</th>
+                    <th className="px-8 py-5 text-[11px] font-bold text-text-muted uppercase tracking-widest text-center">Status</th>
+                    <th className="px-8 py-5 text-[11px] font-bold text-text-muted uppercase tracking-widest text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {filteredResources.map((res) => (
+                    <tr key={res.id} className="hover:bg-gray-50/50 transition-colors group">
+                      <td className="px-8 py-6">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-brand-primary mb-1">#{res.id.substring(0,6)}</span>
+                          <span className="font-bold text-text-main group-hover:text-brand-primary transition-colors">{res.title}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-text-muted">
+                          {institutions.find(i => i.id === res.institutionId)?.name || '알 수 없음'}
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 text-center">
+                        <div className="flex justify-center">
+                          {res.isPasswordProtected ? (
+                            <span className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-bold">
+                              <ShieldCheck size={12} /> LOCKED
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold">PUBLIC</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleOpenModal(res)}
+                            className="p-2 text-text-muted hover:text-brand-primary hover:bg-brand-accent rounded-xl transition-all"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(res.id)}
+                            className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Resource Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isSubmitting && setIsModalOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
             <motion.div 
-              initial={{ opacity: 0, scale: 0.8, y: 40 }} 
-              animate={{ opacity: 1, scale: 1, y: 0 }} 
-              exit={{ opacity: 0, scale: 0.8, y: 40 }} 
-              className="relative w-full max-w-5xl bg-white p-6 md:p-16 rounded-[2rem] md:rounded-[3rem] shadow-bold border border-white/20 text-center"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-2xl bg-white rounded-[3rem] shadow-2xl overflow-hidden"
             >
-              <button 
-                onClick={() => setLargeDisplay(null)}
-                className="absolute top-6 right-6 md:top-10 md:right-10 p-2 md:p-4 rounded-full hover:bg-bg-main text-text-muted transition-all"
-              >
-                <X size={24} className="md:w-8 md:h-8" />
-              </button>
-              
-              <div className="mb-6 md:mb-12">
-                <span className="inline-block px-4 py-1.5 md:px-6 md:py-2 bg-brand-accent text-brand-primary rounded-full text-xs md:text-lg font-bold uppercase tracking-widest mb-4 md:mb-6">
-                  Access Password
-                </span>
-                <h2 className="text-2xl md:text-4xl font-display font-bold text-text-main mb-4 leading-tight">{largeDisplay.title}</h2>
-                <div className="w-16 md:w-24 h-1 bg-brand-primary mx-auto rounded-full opacity-20" />
-              </div>
-
-              <div className="bg-bg-main py-12 md:py-20 rounded-[2rem] border-2 border-dashed border-brand-primary/30 mb-12 shadow-inner flex flex-col items-center justify-center overflow-hidden">
-                <div className="text-[clamp(3rem,14vw,9rem)] font-mono font-black text-brand-primary tracking-[0.1em] md:tracking-[0.2em] leading-none mb-8 select-all whitespace-nowrap">
-                  {largeDisplay.password}
-                </div>
-                <p className="text-lg md:text-xl text-text-muted font-medium opacity-80">영문 대소문자와 숫자를 정확히 입력해 주세요.</p>
-              </div>
-
-              <div className="flex items-center justify-center gap-3 text-text-muted font-bold text-sm tracking-widest uppercase">
-                <Info size={18} className="text-brand-primary" />
-                입장 시 6자리 비밀번호 확인이 필요합니다
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Management Panels */}
-        <div className="lg:col-span-4 space-y-8">
-          {/* Institution Panel */}
-          <section className="bg-white p-6 rounded-2xl shadow-subtle border border-border-subtle">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-brand-accent text-brand-primary rounded-xl flex items-center justify-center">
-                <Building2 size={24} />
-              </div>
-              <h2 className="text-lg font-display font-bold text-text-main">기관 등록</h2>
-            </div>
-            
-            <form onSubmit={handleAddInstitution} className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-text-muted uppercase tracking-wider mb-1.5 ml-1">기관 이름</label>
-                <input
-                  id="inst-name-input"
-                  type="text"
-                  placeholder="예: 미래창의고등학교"
-                  value={instName}
-                  onChange={(e) => setInstName(e.target.value)}
-                  suppressHydrationWarning
-                  className="w-full px-4 py-2.5 bg-bg-main border border-border-subtle rounded-lg text-sm outline-none focus:border-brand-primary transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold text-text-muted uppercase tracking-wider mb-1.5 ml-1">기관 유형</label>
-                <select
-                  id="inst-type-select"
-                  value={instType}
-                  onChange={(e) => setInstType(e.target.value)}
-                  suppressHydrationWarning
-                  className="w-full px-4 py-2.5 bg-bg-main border border-border-subtle rounded-lg text-sm outline-none focus:border-brand-primary transition-all appearance-none"
-                >
-                  <option value="school">학교</option>
-                  <option value="organization">기관 / 단체</option>
-                  <option value="corporation">기업</option>
-                </select>
-              </div>
-              <button
-                disabled={isSubmitting || !instName}
-                className="w-full py-3 bg-brand-primary text-white rounded-lg font-bold text-sm tracking-wide flex items-center justify-center gap-2 hover:bg-brand-dark transition-all disabled:opacity-50 shadow-lg shadow-blue-50"
-              >
-                <Plus size={18} />
-                기관 등록
-              </button>
-            </form>
-
-            <div className="mt-8 pt-6 border-t border-border-subtle space-y-3">
-              <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-[0.2em] pl-1 mb-4">참여 기관 목록</h3>
-              <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
-                {institutions.map(inst => (
-                  <div key={inst.id} className="group flex items-center justify-between p-3 bg-bg-main rounded-lg border border-border-subtle hover:bg-white transition-all">
-                    <span className="text-sm font-medium text-text-main">{inst.name}</span>
-                    <button 
-                      onClick={() => setDeleteId({ coll: 'institutions', id: inst.id })}
-                      className="p-1.5 text-text-muted opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 rounded transition-all"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        </div>
-
-        {/* Right Column: Content Resource Panel */}
-        <div className="lg:col-span-8 space-y-8">
-          <section className="bg-white p-8 rounded-2xl shadow-subtle border border-border-subtle">
-            <div className="flex items-center gap-3 mb-8">
-              <div className={`w-12 h-12 ${editingId ? 'bg-orange-100 text-orange-600' : 'bg-brand-accent text-brand-primary'} rounded-xl flex items-center justify-center transition-colors`}>
-                {editingId ? <Edit size={28} /> : <BookOpen size={28} />}
-              </div>
-              <h2 className="text-xl font-display font-bold text-text-main">
-                {editingId ? '리소스 수정하기' : '신규 리소스 등록'}
-              </h2>
-            </div>
-
-            <form onSubmit={handleAddResource} className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider ml-1">자료 제목</label>
-                <input
-                  id="res-title-input"
-                  type="text"
-                  placeholder="예: ChatGPT 실무 입문"
-                  value={resTitle}
-                  onChange={(e) => setResTitle(e.target.value)}
-                  suppressHydrationWarning
-                  className="w-full px-4 py-2.5 bg-bg-main border border-border-subtle rounded-lg text-sm outline-none focus:border-brand-primary transition-all"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider ml-1">담당 기관</label>
-                <select
-                  id="res-inst-select"
-                  value={resInstId}
-                  onChange={(e) => setResInstId(e.target.value)}
-                  suppressHydrationWarning
-                  className="w-full px-4 py-2.5 bg-bg-main border border-border-subtle rounded-lg text-sm outline-none focus:border-brand-primary transition-all"
-                >
-                  <option value="">Choose Institution...</option>
-                  {institutions.map(inst => (
-                    <option key={inst.id} value={inst.id}>{inst.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="md:col-span-2 space-y-1.5">
-                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider ml-1">요약 설명</label>
-                <textarea
-                  id="res-desc-textarea"
-                  placeholder="Learning guide summary..."
-                  value={resDesc}
-                  onChange={(e) => setResDesc(e.target.value)}
-                  suppressHydrationWarning
-                  className="w-full px-4 py-2.5 bg-bg-main border border-border-subtle rounded-lg text-sm outline-none focus:border-brand-primary transition-all h-20 resize-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider ml-1">가이드 URL</label>
-                <input
-                  id="res-guide-url-input"
-                  type="url"
-                  placeholder="https://..."
-                  value={resGuideUrl}
-                  onChange={(e) => setResGuideUrl(e.target.value)}
-                  suppressHydrationWarning
-                  className="w-full px-4 py-2.5 bg-bg-main border border-border-subtle rounded-lg text-sm outline-none focus:border-brand-primary transition-all"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider ml-1">썸네일 URL</label>
-                <div className="flex gap-4">
-                  <input
-                    id="res-thumb-url-input"
-                    type="url"
-                    placeholder="https://..."
-                    value={resThumbUrl}
-                    onChange={(e) => setResThumbUrl(e.target.value)}
-                    suppressHydrationWarning
-                    className="flex-1 px-4 py-2.5 bg-bg-main border border-border-subtle rounded-lg text-sm outline-none focus:border-brand-primary transition-all"
-                  />
-                  {resThumbUrl && (
-                    <div className="w-10 h-10 rounded-lg overflow-hidden border border-border-subtle relative bg-gray-100 flex items-center justify-center">
-                      <ResourceThumbnail url={resThumbUrl} />
-                    </div>
-                  )}
-                </div>
-                <p className="text-[10px] text-text-muted mt-1 ml-1 flex items-center gap-1">
-                  <Info size={10} className="text-brand-primary" />
-                  노션 첨부파일 주소는 접근권한 문제로 표시되지 않을 수 있습니다.
-                </p>
-              </div>
-
-              <div className="space-y-1.5 md:col-span-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider ml-1">접근 보안 설정</label>
-                  <button
-                    type="button"
-                    onClick={() => setIsResPasswordProtected(!isResPasswordProtected)}
-                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                      isResPasswordProtected 
-                        ? 'bg-brand-primary text-white' 
-                        : 'bg-gray-100 text-text-muted'
-                    }`}
+              <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[90vh]">
+                <div className="p-8 border-b border-border-subtle flex items-center justify-between bg-gray-50/50">
+                  <h2 className="text-2xl font-black text-text-main">
+                    {editingResource ? '리소스 수정' : '새 리소스 등록'}
+                  </h2>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)} 
+                    className="p-2 hover:bg-gray-100 rounded-full transition-all"
                   >
-                    <div className={`w-3 h-3 rounded-full border-2 border-white transition-all ${isResPasswordProtected ? 'bg-white' : 'translate-x-0 bg-gray-400'}`} />
-                    {isResPasswordProtected ? '비밀번호 사용 중' : '보안 해제됨'}
+                    <X size={24} />
                   </button>
                 </div>
 
-                {isResPasswordProtected ? (
-                  <div className="flex gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div 
-                      id="res-password-display"
-                      suppressHydrationWarning
-                      className="flex-1 px-4 py-3 bg-bg-main border border-dashed border-brand-primary rounded-lg text-center font-mono font-bold tracking-[0.4em] text-lg text-brand-primary"
-                    >
-                      {resPassword || '------'}
+                <div className="p-8 space-y-6 overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-text-muted uppercase tracking-widest ml-1">Title</label>
+                      <input 
+                        type="text" required
+                        value={formData.title}
+                        onChange={(e) => setFormData({...formData, title: e.target.value})}
+                        className="w-full px-5 py-4 bg-gray-50 border border-border-subtle rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition-all font-medium"
+                      />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setResPassword(generatePassword())}
-                      className="px-4 bg-white border border-border-subtle rounded-lg hover:bg-bg-main transition-all text-text-muted"
-                    >
-                      <RefreshCcw size={18} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="px-4 py-4 bg-green-50 border border-green-100 rounded-lg flex items-center gap-3 text-green-700">
-                    <Info size={18} className="shrink-0" />
-                    <p className="text-xs font-medium">비밀번호 없이 누구나 클릭만으로 가이드에 접근할 수 있게 설정됩니다.</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="md:col-span-2 pt-4 flex gap-4">
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !resTitle || !resInstId || !resGuideUrl || (isResPasswordProtected && !resPassword)}
-                  className={`flex-1 py-3 ${editingId ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-50' : 'bg-brand-primary hover:bg-brand-dark shadow-blue-50'} text-white rounded-lg font-bold text-sm transition-all shadow-lg disabled:opacity-50`}
-                >
-                  {editingId ? '수정 내용 저장' : '저장하기'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { 
-                    setEditingId(null);
-                    setResTitle(''); setResInstId(''); setResDesc(''); setResGuideUrl(''); setResThumbUrl(''); setResPassword(''); 
-                  }}
-                  className="px-8 py-3 bg-white border border-border-subtle text-text-muted rounded-lg font-bold text-sm hover:bg-gray-50 transition-all"
-                >
-                  {editingId ? '수정 취소' : '취소'}
-                </button>
-              </div>
-            </form>
-          </section>
-
-          {/* Published List */}
-          <section className="space-y-4">
-            <h2 className="text-sm font-bold text-text-muted uppercase tracking-[0.2em] px-2">최근 게시 자료 현황</h2>
-            <div className="grid grid-cols-1 gap-3">
-              {resources.map(res => (
-                <div key={res.id} className="bg-white p-4 rounded-xl border border-border-subtle flex items-center justify-between group hover:shadow-subtle transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-bg-main rounded-lg overflow-hidden relative flex items-center justify-center text-text-muted">
-                      <ResourceThumbnail url={res.thumbnailUrl} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-text-main">{res.title}</h4>
-                      <p className="text-[11px] text-text-muted flex items-center gap-3">
-                        <span className="font-bold text-brand-primary uppercase">{institutions.find(i => i.id === res.institutionId)?.name || 'EDUCATION'}</span>
-                        <span className="flex items-center gap-1 font-mono text-brand-dark">
-                          {res.isPasswordProtected !== false ? (
-                            <>
-                              <Key size={10} /> {res.password}
-                            </>
-                          ) : (
-                            <span className="text-green-600 font-bold tracking-tight">OPEN ACCESS</span>
-                          )}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                    <button 
-                      onClick={() => handleEditStart(res)}
-                      className="p-2 text-text-muted hover:text-brand-primary hover:bg-brand-accent rounded-lg transition-all"
-                      title="수정하기"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    {res.isPasswordProtected !== false && (
-                      <button 
-                        onClick={() => setLargeDisplay({ title: res.title, password: res.password })}
-                        className="p-2 text-brand-primary hover:bg-brand-accent rounded-lg transition-all"
-                        title="크게 보기"
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-text-muted uppercase tracking-widest ml-1">Institution</label>
+                      <select 
+                        required
+                        value={formData.institutionId}
+                        onChange={(e) => setFormData({...formData, institutionId: e.target.value})}
+                        className="w-full px-5 py-4 bg-gray-50 border border-border-subtle rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition-all font-medium appearance-none"
                       >
-                        <Monitor size={16} />
-                      </button>
+                        <option value="">기관 선택</option>
+                        {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-text-muted uppercase tracking-widest ml-1">Description</label>
+                    <textarea 
+                      rows={2}
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      className="w-full px-5 py-4 bg-gray-50 border border-border-subtle rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition-all font-medium"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-text-muted uppercase tracking-widest ml-1">Guide URL</label>
+                      <input 
+                        type="url" required
+                        value={formData.guideUrl}
+                        onChange={(e) => setFormData({...formData, guideUrl: e.target.value})}
+                        className="w-full px-5 py-4 bg-gray-50 border border-border-subtle rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition-all font-medium"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-text-muted uppercase tracking-widest ml-1">Thumbnail URL (Optional)</label>
+                      <input 
+                        type="url"
+                        value={formData.thumbnailUrl}
+                        onChange={(e) => setFormData({...formData, thumbnailUrl: e.target.value})}
+                        className="w-full px-5 py-4 bg-gray-50 border border-border-subtle rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-accent transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-6 bg-brand-accent/30 rounded-[2rem] border border-brand-accent/50 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="text-brand-primary" size={20} />
+                        <span className="text-sm font-bold text-brand-primary">보안 코드 설정</span>
+                      </div>
+                      <input 
+                        type="checkbox"
+                        checked={formData.isPasswordProtected}
+                        onChange={(e) => setFormData({...formData, isPasswordProtected: e.target.checked})}
+                        className="w-5 h-5 accent-brand-primary cursor-pointer"
+                      />
+                    </div>
+                    {formData.isPasswordProtected && (
+                      <input 
+                        type="text"
+                        placeholder="접속 시 필요한 코드를 입력하세요"
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        className="w-full px-5 py-4 bg-white border border-brand-accent rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all font-bold tracking-widest text-center"
+                      />
                     )}
-                    <button 
-                      onClick={() => setDeleteId({ coll: 'resources', id: res.id })}
-                      className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </div>
+
+                <div className="p-8 bg-gray-50 border-t border-border-subtle flex gap-4">
+                  <button 
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 py-4 text-sm font-black text-text-muted hover:bg-gray-100 rounded-2xl transition-all"
+                  >
+                    취소하기
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-[2] py-4 bg-brand-primary text-white font-black rounded-2xl hover:bg-brand-dark transition-all shadow-xl shadow-brand-primary/20 flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        처리 중...
+                      </>
+                    ) : (
+                      editingResource ? '수정사항 저장' : '새 리소스 등록'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
