@@ -45,11 +45,11 @@ export function Navbar() {
     ] : [])
   ];
 
-  if (!isMounted) return null; // 서버 사이드 렌더링 시에는 아무것도 렌더링하지 않음 (하이드레이션 에러 방지)
+  if (!isMounted) return null;
 
   return (
     <>
-      {/* Mobile Header */}
+      {/* Mobile Header (Fixed Top) */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-border-subtle flex items-center justify-between px-6 z-[60]">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center">
@@ -57,49 +57,61 @@ export function Navbar() {
           </div>
           <span className="font-display font-bold text-lg text-text-main">AI-Learn Hub</span>
         </Link>
-        <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-text-main">
-          {isOpen ? <X size={24} /> : <Menu size={24} />}
+        <button onClick={() => setIsOpen(true)} className="p-2 text-text-main hover:bg-gray-50 rounded-lg transition-all">
+          <Menu size={24} />
         </button>
       </header>
 
-      {/* Desktop/Mobile Sidebar */}
+      {/* Desktop/Mobile Sidebar Container */}
       <AnimatePresence>
         {(isOpen || window.innerWidth >= 1024) && (
           <>
-            {/* Mobile Overlay */}
+            {/* Mobile Overlay (Backdrop) */}
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsOpen(false)}
-              className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-[70]"
+              className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
             />
             
+            {/* Sidebar Content */}
             <motion.aside 
-              initial={{ x: -260 }}
+              initial={{ x: -280 }}
               animate={{ x: 0 }}
-              exit={{ x: -260 }}
+              exit={{ x: -280 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 bottom-0 w-[260px] bg-white border-r border-border-subtle flex flex-col py-8 z-[80] lg:z-50"
+              className="fixed left-0 top-0 bottom-0 w-[280px] bg-white border-r border-border-subtle flex flex-col z-[80] lg:z-50 shadow-2xl lg:shadow-none"
             >
-              <div className="px-6 mb-10 hidden lg:block">
+              {/* Sidebar Top Header (Always visible on mobile/desktop inside sidebar) */}
+              <div className="px-6 py-8 flex items-center justify-between">
                 <Link href="/" className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-brand-primary rounded-lg flex items-center justify-center">
                     <GraduationCap className="text-white w-5 h-5" />
                   </div>
                   <span className="font-display font-bold text-xl text-text-main tracking-tight">AI-Learn Hub</span>
                 </Link>
+
+                {/* Mobile Close Button (Inside the header for clarity) */}
+                <button 
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="lg:hidden p-2 text-text-muted hover:bg-gray-100 rounded-full transition-all"
+                  aria-label="Close menu"
+                >
+                  <X size={24} />
+                </button>
               </div>
 
-              <nav className="flex-1 px-3 space-y-1 mt-12 lg:mt-0">
+              <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
                 {navItems.map((item) => (
                   <Link 
                     key={item.name}
                     href={item.href}
                     className={`
-                      flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all duration-200
+                      flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm transition-all duration-200
                       ${item.active 
-                        ? 'bg-brand-accent text-brand-primary font-bold border-r-4 border-brand-primary rounded-r-none' 
+                        ? 'bg-brand-accent text-brand-primary font-bold border-r-4 border-brand-primary rounded-r-none shadow-sm' 
                         : 'text-text-muted hover:bg-gray-50 hover:text-text-main'}
                     `}
                   >
@@ -109,28 +121,16 @@ export function Navbar() {
                 ))}
               </nav>
 
-              {/* Mobile Close Button - Moved to bottom of DOM for overlay priority */}
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsOpen(false);
-                }} 
-                className="lg:hidden absolute top-4 right-4 p-3 text-text-muted hover:bg-gray-100 rounded-full transition-all z-[100] cursor-pointer"
-                aria-label="Close menu"
-              >
-                <X size={24} />
-              </button>
-
-              <div className="px-3 border-t border-border-subtle pt-6">
+              <div className="p-6 border-t border-border-subtle bg-gray-50/30">
                 {admin ? (
-                  <div className="space-y-1">
-                    <div className="px-4 py-2 mb-2">
-                      <p className="text-xs font-bold text-text-muted uppercase tracking-widest mb-1">Authenticated</p>
-                      <p className="text-sm font-medium text-text-main truncate">{admin.username}</p>
+                  <div className="space-y-4">
+                    <div className="px-4 py-3 bg-white rounded-2xl border border-border-subtle shadow-sm">
+                      <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-1">Authenticated</p>
+                      <p className="text-sm font-black text-text-main truncate">{admin.username}</p>
                     </div>
                     <button 
                       onClick={handleSignOut}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-text-muted hover:bg-red-50 hover:text-red-500 transition-all rounded-xl"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 transition-all rounded-xl"
                     >
                       <LogOut size={18} />
                       로그아웃
@@ -139,7 +139,7 @@ export function Navbar() {
                 ) : (
                   <Link 
                     href="/login"
-                    className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-white bg-brand-primary hover:bg-brand-dark transition-all rounded-xl shadow-lg shadow-blue-100"
+                    className="flex items-center justify-center gap-2 w-full py-4 bg-brand-primary text-white text-sm font-black rounded-2xl hover:bg-brand-dark transition-all shadow-lg shadow-brand-primary/20"
                   >
                     <LogIn size={18} />
                     관리자 로그인
