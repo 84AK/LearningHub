@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  /* VCEP 2026 Premium Palette */
+  --color-bg-main: #f8fafc;
+  --color-sidebar-bg: #ffffff;
+  --color-brand-primary: #1a73e8;
+  --color-brand-dark: #1557b0;
+  --color-brand-accent: #e8f0fe;
+  --color-text-main: #0f172a;
+  --color-text-muted: #64748b;
+  --color-border-subtle: #e2e8f0;
+  
+  --shadow-subtle: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-bold: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  --animate-shake: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+
+  @keyframes shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+  }
+}
+
+@layer base {
+  *, ::before, ::after {
+    border-color: var(--color-border-subtle);
+  }
+  
+  body {
+    background-color: var(--color-bg-main);
+    color: var(--color-text-main);
+    @apply antialiased;
+  }
+}
+

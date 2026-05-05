@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+
+# Production Build
+/build
+
+# Vercel
+.vercel
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# GAS (Security Warning)
+# Docs/GAS/Code.gs 파일 내의 SPREADSHEET_ID가 유출되지 않도록 주의하세요.
+# 만약 저장소를 공개(Public)로 설정할 예정이라면 해당 ID를 제거하고 커밋하는 것을 권장합니다.
