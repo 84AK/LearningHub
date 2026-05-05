@@ -91,15 +91,7 @@ export function Navbar() {
                 </Link>
               </div>
 
-              {/* Mobile Close Button */}
-              <button 
-                onClick={() => setIsOpen(false)} 
-                className="lg:hidden absolute top-4 right-4 p-3 text-text-muted hover:bg-gray-100 rounded-full transition-all z-[90]"
-              >
-                <X size={24} />
-              </button>
-
-              <nav className="flex-1 px-3 space-y-1 mt-4 lg:mt-0">
+              <nav className="flex-1 px-3 space-y-1 mt-12 lg:mt-0">
                 {navItems.map((item) => (
                   <Link 
                     key={item.name}
@@ -116,6 +108,18 @@ export function Navbar() {
                   </Link>
                 ))}
               </nav>
+
+              {/* Mobile Close Button - Moved to bottom of DOM for overlay priority */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                }} 
+                className="lg:hidden absolute top-4 right-4 p-3 text-text-muted hover:bg-gray-100 rounded-full transition-all z-[100] cursor-pointer"
+                aria-label="Close menu"
+              >
+                <X size={24} />
+              </button>
 
               <div className="px-3 border-t border-border-subtle pt-6">
                 {admin ? (
