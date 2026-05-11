@@ -16,7 +16,9 @@ export default function StatisticsAdmin() {
     totalViews: 0,
     uniqueResources: 0,
     uniqueInstitutions: 0,
-    recentActivityCount: 0
+    recentActivityCount: 0,
+    topResource: '데이터 없음',
+    topInstitution: '데이터 없음'
   });
 
   useEffect(() => {
@@ -40,6 +42,22 @@ export default function StatisticsAdmin() {
         const resources = new Set(data.map(a => a.resourceId));
         const institutions = new Set(data.map(a => a.institutionName));
         
+        // 최빈값 계산 함수
+        const getMostFrequent = (arr: any[]) => {
+          if (arr.length === 0) return '데이터 없음';
+          const counts = arr.reduce((acc, val) => {
+            if (val) acc[val] = (acc[val] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          
+          const keys = Object.keys(counts);
+          if (keys.length === 0) return '데이터 없음';
+          return keys.reduce((a, b) => counts[a] > counts[b] ? a : b);
+        };
+
+        const topResourceTitle = getMostFrequent(data.map(a => a.resourceTitle));
+        const topInstName = getMostFrequent(data.map(a => a.institutionName));
+        
         setStats({
           totalViews: data.length,
           uniqueResources: resources.size,
@@ -48,7 +66,9 @@ export default function StatisticsAdmin() {
             const date = new Date(a.timestamp);
             const today = new Date();
             return date.toDateString() === today.toDateString();
-          }).length
+          }).length,
+          topResource: topResourceTitle,
+          topInstitution: topInstName
         });
       }
     } catch (err) {
@@ -147,11 +167,11 @@ export default function StatisticsAdmin() {
               <div className="space-y-6">
                 <div>
                   <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mb-2">가장 많이 본 자료</p>
-                  <p className="text-xl font-bold line-clamp-2">인공지능 활용 가이드 (AK Labs)</p>
+                  <p className="text-xl font-bold line-clamp-2">{stats.topResource}</p>
                 </div>
                 <div>
                   <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mb-2">최다 접속 기관</p>
-                  <p className="text-xl font-bold">서울대학교 교육혁신본부</p>
+                  <p className="text-xl font-bold">{stats.topInstitution}</p>
                 </div>
               </div>
             </div>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchFromGAS, saveToGAS } from '@/lib/gas';
 import { Navbar } from '@/components/Navbar';
-import { Building2, Plus, Trash2, Search, ArrowLeft } from 'lucide-react';
+import { Building2, Plus, Trash2, Search, ArrowLeft, Edit2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function InstitutionsAdmin() {
@@ -17,6 +17,17 @@ export default function InstitutionsAdmin() {
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('school');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState('school');
+
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const savedAdmin = localStorage.getItem('vcep_admin');
@@ -50,10 +61,14 @@ export default function InstitutionsAdmin() {
       });
       if (success) {
         setNewName('');
+        showToast('새로운 기관이 등록되었습니다!');
         loadInstitutions();
+      } else {
+        showToast('기관 등록에 실패했습니다.', 'error');
       }
     } catch (err) {
       console.error(err);
+      showToast('오류가 발생했습니다.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -63,9 +78,40 @@ export default function InstitutionsAdmin() {
     if (!confirm('정말 삭제하시겠습니까? 관련 리소스는 유지되나 기관명이 표시되지 않을 수 있습니다.')) return;
     try {
       const success = await saveToGAS('deleteInstitution', { payload: { id } });
-      if (success) loadInstitutions();
+      if (success) {
+        showToast('기관이 삭제되었습니다.');
+        loadInstitutions();
+      } else {
+        showToast('삭제에 실패했습니다.', 'error');
+      }
     } catch (err) {
       console.error(err);
+      showToast('오류가 발생했습니다.', 'error');
+    }
+  };
+
+  const handleEdit = (inst: any) => {
+    setEditingId(inst.id);
+    setEditName(inst.name);
+    setEditType(inst.type);
+  };
+
+  const handleUpdate = async (id: string) => {
+    if (!editName.trim()) return;
+    try {
+      const success = await saveToGAS('updateInstitution', {
+        payload: { id, name: editName, type: editType }
+      });
+      if (success) {
+        setEditingId(null);
+        showToast('성공적으로 수정 및 저장되었습니다!');
+        loadInstitutions();
+      } else {
+        showToast('저장에 실패했습니다.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('오류가 발생했습니다.', 'error');
     }
   };
 
@@ -76,7 +122,24 @@ export default function InstitutionsAdmin() {
   if (loading && !admin) return null;
 
   return (
-    <main className="p-6 lg:p-10 bg-bg-main min-h-screen">
+    <main className="p-6 lg:p-10 bg-bg-main min-h-screen relative">
+      {/* Status Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: -100, x: '-50%' }}
+            animate={{ opacity: 1, y: 20, x: '-50%' }}
+            exit={{ opacity: 0, y: -100, x: '-50%' }}
+            className={`fixed top-0 left-1/2 z-[110] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${
+              toast.type === 'success' ? 'bg-white border-emerald-100 text-emerald-600' : 'bg-white border-red-100 text-red-600'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
+            <span className="font-bold">{toast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-4xl mx-auto">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
           <div>
@@ -167,21 +230,57 @@ export default function InstitutionsAdmin() {
                       exit={{ opacity: 0, scale: 0.95 }}
                       className="bg-white p-5 rounded-2xl border border-border-subtle flex items-center justify-between group hover:border-brand-primary transition-all shadow-sm"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-brand-accent rounded-xl flex items-center justify-center text-brand-primary">
-                          <Building2 size={20} />
+                      {editingId === inst.id ? (
+                        <div className="flex-1 flex flex-col md:flex-row items-center gap-3 w-full">
+                          <input 
+                            type="text" 
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            className="flex-1 w-full px-3 py-2.5 bg-gray-50 border border-brand-accent rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm font-bold"
+                            autoFocus
+                          />
+                          <select
+                            value={editType}
+                            onChange={e => setEditType(e.target.value)}
+                            className="w-full md:w-auto px-3 py-2.5 bg-gray-50 border border-brand-accent rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm font-bold appearance-none"
+                          >
+                            <option value="school">초/중/고등학교</option>
+                            <option value="university">대학교/대학원</option>
+                            <option value="company">일반 기업</option>
+                            <option value="org">기타 단체</option>
+                          </select>
+                          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                            <button onClick={() => setEditingId(null)} className="px-4 py-2.5 bg-gray-100 text-text-muted text-xs font-bold rounded-xl hover:bg-gray-200 transition-all whitespace-nowrap">취소</button>
+                            <button onClick={() => handleUpdate(inst.id)} className="px-4 py-2.5 bg-brand-primary text-white text-xs font-bold rounded-xl hover:bg-brand-dark transition-all whitespace-nowrap shadow-md shadow-blue-100">저장</button>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-text-main">{inst.name}</h3>
-                          <p className="text-xs text-text-muted uppercase tracking-tighter">{inst.type}</p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => handleDelete(inst.id)}
-                        className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-brand-accent rounded-xl flex items-center justify-center text-brand-primary shrink-0">
+                              <Building2 size={20} />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-text-main">{inst.name}</h3>
+                              <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold">{inst.type}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={() => handleEdit(inst)}
+                              className="p-2 text-text-muted hover:text-brand-primary hover:bg-brand-accent rounded-lg transition-all"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(inst.id)}
+                              className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </motion.div>
                   ))}
                 </AnimatePresence>

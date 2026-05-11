@@ -6,11 +6,13 @@
 declare var process: {
   env: {
     NEXT_PUBLIC_GAS_URL?: string;
+    NEXT_PUBLIC_GAS_SECRET?: string;
     [key: string]: string | undefined;
   };
 };
 
 const GAS_URL = process.env.NEXT_PUBLIC_GAS_URL;
+const GAS_SECRET = process.env.NEXT_PUBLIC_GAS_SECRET || 'vcep_secret_2026';
 
 interface GASResponse<T> {
   status: 'success' | 'error';
@@ -27,7 +29,7 @@ export async function fetchFromGAS<T>(action: string, params: Record<string, str
     return null;
   }
 
-  const queryParams = new URLSearchParams({ action, ...params }).toString();
+  const queryParams = new URLSearchParams({ action, secret: GAS_SECRET, ...params }).toString();
   const url = `${GAS_URL}?${queryParams}`;
 
   try {
@@ -68,7 +70,7 @@ export async function saveToGAS<T>(action: string, payload: any): Promise<boolea
     const response = await fetch(GAS_URL, {
       method: 'POST',
       mode: 'no-cors', // GAS 리디렉션 이슈 대응
-      body: JSON.stringify({ action, ...payload }),
+      body: JSON.stringify({ action, secret: GAS_SECRET, ...payload }),
       headers: {
         'Content-Type': 'application/json',
       },

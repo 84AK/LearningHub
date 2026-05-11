@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchFromGAS, saveToGAS } from '@/lib/gas';
-import { Plus, Edit2, Trash2, Search, ExternalLink, ShieldCheck, LayoutDashboard, CheckCircle2, AlertCircle, X, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, ExternalLink, ShieldCheck, LayoutDashboard, CheckCircle2, AlertCircle, X, Loader2, RefreshCw, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
@@ -21,6 +21,7 @@ export default function AdminDashboard() {
   // Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<any>(null);
+  const [fullScreenCode, setFullScreenCode] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -61,6 +62,12 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGenerateRandomCode = () => {
+    // 6자리 랜덤 숫자
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setFormData({...formData, password: code});
   };
 
   const handleOpenModal = (resource?: any) => {
@@ -230,9 +237,25 @@ export default function AdminDashboard() {
                   {filteredResources.map((res) => (
                     <tr key={res.id} className="hover:bg-gray-50/50 transition-colors group">
                       <td className="px-8 py-6">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-brand-primary mb-1">#{res.id.substring(0,6)}</span>
-                          <span className="font-bold text-text-main group-hover:text-brand-primary transition-colors">{res.title}</span>
+                        <div className="flex items-center gap-4">
+                          {res.thumbnailUrl ? (
+                            <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-border-subtle bg-gray-50 flex items-center justify-center shadow-sm">
+                              <img 
+                                src={res.thumbnailUrl} 
+                                alt={res.title} 
+                                className="w-full h-full object-cover" 
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 rounded-xl bg-brand-accent/30 shrink-0 border border-brand-accent flex items-center justify-center">
+                              <span className="text-brand-primary font-bold text-[10px]">No Img</span>
+                            </div>
+                          )}
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-brand-primary mb-1 tracking-widest">#{res.id.substring(0,6)}</span>
+                            <span className="font-bold text-text-main group-hover:text-brand-primary transition-colors">{res.title}</span>
+                          </div>
                         </div>
                       </td>
                       <td className="px-8 py-6">
@@ -253,15 +276,26 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-8 py-6 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {res.isPasswordProtected && res.password && (
+                            <button
+                              onClick={() => setFullScreenCode(res.password)}
+                              className="p-2 text-text-muted hover:text-brand-primary hover:bg-brand-accent rounded-xl transition-all"
+                              title="보안 코드 크게 보기"
+                            >
+                              <Maximize2 size={18} />
+                            </button>
+                          )}
                           <button 
                             onClick={() => handleOpenModal(res)}
                             className="p-2 text-text-muted hover:text-brand-primary hover:bg-brand-accent rounded-xl transition-all"
+                            title="수정하기"
                           >
                             <Edit2 size={18} />
                           </button>
                           <button 
                             onClick={() => handleDelete(res.id)}
                             className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                            title="삭제하기"
                           >
                             <Trash2 size={18} />
                           </button>
@@ -377,13 +411,32 @@ export default function AdminDashboard() {
                       />
                     </div>
                     {formData.isPasswordProtected && (
-                      <input 
-                        type="text"
-                        placeholder="접속 시 필요한 코드를 입력하세요"
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        className="w-full px-5 py-4 bg-white border border-brand-accent rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all font-bold tracking-widest text-center"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="text"
+                          placeholder="접속 시 필요한 코드를 입력하세요"
+                          value={formData.password}
+                          onChange={(e) => setFormData({...formData, password: e.target.value})}
+                          className="flex-1 px-5 py-4 bg-white border border-brand-accent rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all font-bold tracking-widest text-center text-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGenerateRandomCode}
+                          className="p-4 bg-white border border-brand-accent rounded-xl hover:bg-gray-50 transition-colors text-text-muted hover:text-brand-primary"
+                          title="랜덤 코드 생성"
+                        >
+                          <RefreshCw size={24} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFullScreenCode(formData.password)}
+                          disabled={!formData.password}
+                          className="p-4 bg-white border border-brand-accent rounded-xl hover:bg-gray-50 transition-colors text-text-muted hover:text-brand-primary disabled:opacity-50"
+                          title="전체화면으로 보기"
+                        >
+                          <Maximize2 size={24} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -414,6 +467,36 @@ export default function AdminDashboard() {
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Fullscreen Code Modal */}
+      <AnimatePresence>
+        {fullScreenCode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] bg-brand-primary flex flex-col items-center justify-center p-6 cursor-pointer"
+            onClick={() => setFullScreenCode(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.5, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.5, y: 50 }}
+              className="text-center"
+            >
+              <p className="text-white/70 font-bold text-2xl mb-8 tracking-widest uppercase">수업 접속 보안 코드</p>
+              <div className="bg-white px-20 py-16 rounded-[4rem] shadow-2xl">
+                <span className="text-[6rem] md:text-[10rem] lg:text-[14rem] font-black text-brand-primary tracking-tight leading-none">
+                  {fullScreenCode}
+                </span>
+              </div>
+            </motion.div>
+            <div className="absolute top-10 right-10 text-white/50 flex items-center gap-2 font-bold">
+              <X size={24} /> 화면 클릭 시 닫힘
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </main>

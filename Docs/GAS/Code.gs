@@ -11,11 +11,17 @@
 
 const SPREADSHEET_ID = '여러분의_스프레드시트_ID_여기에_입력';
 const CACHE_TTL = 3600; // 1시간 캐시
+const API_SECRET_KEY = PropertiesService.getScriptProperties().getProperty('API_SECRET_KEY') || 'vcep_secret_2026'; // 앱스 스크립트 속성에서 읽어오거나 기본값 사용
 
 /**
  * 초기 설정 및 데이터 요청 처리
  */
 function doGet(e) {
+  const secret = e.parameter.secret;
+  if (secret !== API_SECRET_KEY) {
+    return createResponse('error', null, 'Unauthorized API Access');
+  }
+
   const action = e.parameter.action;
   const userId = e.parameter.userId || "guest";
   
@@ -65,6 +71,12 @@ function doPost(e) {
     lock.waitLock(10000); 
     
     const contents = JSON.parse(e.postData.contents);
+    const secret = contents.secret;
+    
+    if (secret !== API_SECRET_KEY) {
+      return ContentService.createTextOutput(JSON.stringify({status: 'error', message: 'Unauthorized API Access'})).setMimeType(ContentService.MimeType.JSON);
+    }
+    
     const action = contents.action;
     const payload = contents.payload;
     
@@ -72,6 +84,9 @@ function doPost(e) {
     switch (action) {
       case 'addInstitution':
         result = saveToSheet('institutions', { ...payload, id: Utilities.getUuid(), createdAt: new Date() });
+        break;
+      case 'updateInstitution':
+        result = updateSheetRow('institutions', payload.id, payload);
         break;
       case 'deleteInstitution':
         result = deleteFromSheet('institutions', payload.id);
